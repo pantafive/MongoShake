@@ -326,6 +326,10 @@ func GetDbNamespace(url string, filterFunc func(name string) bool, sslRootFile s
 
 	nsList := make([]NS, 0, 128)
 	for _, db := range dbNames {
+		// Skip system databases that may not be accessible in managed MongoDB (Atlas, Aliyun serverless)
+		if db == "admin" || db == "local" || db == "config" {
+			continue
+		}
 		colNames, err := conn.Client.Database(db).ListCollectionNames(nil, queryCondition)
 		if err != nil {
 			err = fmt.Errorf("get collection names of mongodb[%s] db[%v] error: %v",
