@@ -312,22 +312,28 @@ func EncodeMongoURI(uri string) (string, error) {
 		return "", fmt.Errorf("missing username or password in username:password")
 	}
 
-	// split hosts and path
+	// split hosts, path and query string
 	hostPathParts := strings.SplitN(afterUserInfo, "/", 2)
 	host := hostPathParts[0]
-	var path string
+	var path, rawQuery string
 	if len(hostPathParts) > 1 {
-		path = "/" + hostPathParts[1]
+		// separate path from query string
+		pathQueryParts := strings.SplitN(hostPathParts[1], "?", 2)
+		path = "/" + pathQueryParts[0]
+		if len(pathQueryParts) > 1 {
+			rawQuery = pathQueryParts[1]
+		}
 	} else {
 		path = ""
 	}
 
 	// generate URL
 	u := &url.URL{
-		Scheme: scheme,
-		User:   url.UserPassword(username, password),
-		Host:   host,
-		Path:   path,
+		Scheme:   scheme,
+		User:     url.UserPassword(username, password),
+		Host:     host,
+		Path:     path,
+		RawQuery: rawQuery,
 	}
 
 	return u.String(), nil
