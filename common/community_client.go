@@ -196,7 +196,13 @@ func (conn *MongoCommunityConn) HasOplogNs(queryCondition bson.M) bool {
 }
 
 func (conn *MongoCommunityConn) AcquireReplicaSetName() string {
+	// First try to extract from connection URL (most reliable for Atlas)
+	if rsName := extractReplicaSetFromURL(conn.URL); rsName != "" {
+		LOG.Info("Replica set name from connection URL: %s", rsName)
+		return rsName
+	}
 
+	// Fallback to replSetGetStatus command
 	res, err := conn.Client.Database("admin").
 		RunCommand(conn.ctx, bson.D{{"replSetGetStatus", 1}}).DecodeBytes()
 	if err != nil {
@@ -211,6 +217,15 @@ func (conn *MongoCommunityConn) AcquireReplicaSetName() string {
 	}
 
 	return id
+}
+
+// extractReplicaSetFromURL parses the replicaSet parameter from MongoDB connection URL
+func extractReplicaSetFromURL(connURL string) string {
+	parsed, err := url.Parse(connURL)
+	if err != nil {
+		return ""
+	}
+	return parsed.Query().Get("replicaSet")
 }
 
 func (conn *MongoCommunityConn) HasUniqueIndex(queryCondition bson.M) bool {
