@@ -47,6 +47,12 @@ func getTimestampMap(sources []*utils.MongoSource, sslRootFile string) (map[stri
 		return nil, nil
 	}
 
+	// For aliyun_serverless (Atlas), oplog is not accessible
+	if conf.Options.SpecialSourceDBFlag == utils.VarSpecialSourceDBFlagAliyunServerless {
+		LOG.Info("aliyun_serverless mode: skipping oplog timestamp fetch")
+		return nil, nil
+	}
+
 	var ckptMap map[string]utils.TimestampNode
 	var err error
 

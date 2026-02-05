@@ -33,10 +33,18 @@ func (coordinator *ReplicationCoordinator) compareCheckpointAndDbTs(syncModeAll 
 		// only used for unit test
 		tsMap, _, smallestNew, _, _, err = utils.GetAllTimestampInUT()
 	case false:
-		// smallestNew is the smallest of the all newest timestamp
-		tsMap, _, smallestNew, _, _, err = utils.GetAllTimestamp(coordinator.MongoD, conf.Options.MongoSslRootCaFile)
-		if err != nil {
-			return 0, nil, false, fmt.Errorf("get all timestamp failed: %v", err)
+		// For aliyun_serverless (Atlas), oplog is not accessible
+		// Skip GetAllTimestamp and use configuration-based timestamps
+		if conf.Options.SpecialSourceDBFlag == utils.VarSpecialSourceDBFlagAliyunServerless {
+			LOG.Info("aliyun_serverless mode: skipping oplog timestamp check")
+			tsMap = make(map[string]utils.TimestampNode)
+			smallestNew = 0
+		} else {
+			// smallestNew is the smallest of the all newest timestamp
+			tsMap, _, smallestNew, _, _, err = utils.GetAllTimestamp(coordinator.MongoD, conf.Options.MongoSslRootCaFile)
+			if err != nil {
+				return 0, nil, false, fmt.Errorf("get all timestamp failed: %v", err)
+			}
 		}
 	}
 

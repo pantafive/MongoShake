@@ -83,15 +83,10 @@ func NewChangeStreamConn(src string,
 			return nil, fmt.Errorf("db list is empty")
 		}
 
-		// TODO(jianyou) deprecate aliyun_serverless
-		//ops.SetMultiDbSelections("(" + strings.Join(dbList, "|") + ")")
-
-		LOG.Info("change stream options with aliyun_serverless: %v", printCsOption(ops))
-		// csHandler, err = client.Database("non-exist-database-shake").Watch(ctx, mongo.Pipeline{}, ops)
-		csHandler, err = conn.Client.Database("serverless-shake-fake-db").
-			Collection("serverless-shake-fake-collection").
-			Watch(conn.ctx, mongo.Pipeline{}, ops)
-		// csHandler, err = client.Database(dbList[0]).Collection("serverless-shake-fake-collection").Watch(ctx, mongo.Pipeline{}, ops)
+		// Use Client.Watch() for deployment-level change stream
+		// The old hack with fake collection doesn't receive events from other databases
+		LOG.Info("change stream options with aliyun_serverless (using Client.Watch): %v", printCsOption(ops))
+		csHandler, err = conn.Client.Watch(conn.ctx, mongo.Pipeline{}, ops)
 		if err != nil {
 			return nil, fmt.Errorf("client[%v] create change stream handler failed[%v]", src, err)
 		}
