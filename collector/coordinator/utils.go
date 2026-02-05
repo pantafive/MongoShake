@@ -34,11 +34,43 @@ func (coordinator *ReplicationCoordinator) compareCheckpointAndDbTs(syncModeAll 
 		tsMap, _, smallestNew, _, _, err = utils.GetAllTimestampInUT()
 	case false:
 		// For aliyun_serverless (Atlas), oplog is not accessible
-		// Skip GetAllTimestamp and use configuration-based timestamps
+		// Skip GetAllTimestamp and read checkpoints directly from database
 		if conf.Options.SpecialSourceDBFlag == utils.VarSpecialSourceDBFlagAliyunServerless {
-			LOG.Info("aliyun_serverless mode: skipping oplog timestamp check")
-			tsMap = make(map[string]utils.TimestampNode)
-			smallestNew = 0
+			LOG.Info("aliyun_serverless mode: reading checkpoints directly from database")
+
+			// Build startTsMap directly by reading checkpoints for each source
+			startTsMap = make(map[string]int64, len(coordinator.RealSourceIncrSync))
+			confTs32 := conf.Options.CheckpointStartPosition
+			confTsMongoTs := confTs32 << 32
+
+			for _, src := range coordinator.RealSourceIncrSync {
+				ckptManager := ckpt.NewCheckpointManager(src.ReplicaName, 0)
+				ckptVar, exist, ckptErr := ckptManager.Get()
+				if ckptErr != nil {
+					return 0, nil, false, fmt.Errorf("get checkpoint for [%v] failed: %v", src.ReplicaName, ckptErr)
+				}
+
+				if !exist || ckptVar.Timestamp <= 1 {
+					// No checkpoint exists - need full sync
+					if syncModeAll {
+						LOG.Info("aliyun_serverless: no checkpoint for [%v], syncModeAll=true, need full sync",
+							src.ReplicaName)
+						return 0, nil, false, nil
+					}
+					// Use configured start position
+					startTsMap[src.ReplicaName] = confTsMongoTs
+					LOG.Info("aliyun_serverless: no checkpoint for [%v], using confTsMongoTs[%v]",
+						src.ReplicaName, confTsMongoTs)
+				} else {
+					// Checkpoint exists - can resume incremental sync
+					startTsMap[src.ReplicaName] = ckptVar.Timestamp
+					LOG.Info("aliyun_serverless: checkpoint for [%v] found, timestamp[%v]",
+						src.ReplicaName, utils.ExtractTimestampForLog(ckptVar.Timestamp))
+				}
+			}
+
+			LOG.Info("aliyun_serverless mode: startTsMap populated: %v", startTsMap)
+			return 0, startTsMap, len(startTsMap) > 0, nil
 		} else {
 			// smallestNew is the smallest of the all newest timestamp
 			tsMap, _, smallestNew, _, _, err = utils.GetAllTimestamp(coordinator.MongoD, conf.Options.MongoSslRootCaFile)
