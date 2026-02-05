@@ -295,6 +295,7 @@ func (conn *MongoCommunityConn) IsTimeSeriesCollection(dbName string, collName s
 // 2) with special chars: "mongodb://root:~!@#$^&*()_-=@localhost:27017/admin"
 // 3) without path: "mongodb://user:password@localhost:27017"
 // 4) auth disabled: "mongodb://localhost:27017"
+// 5) SRV records: "mongodb+srv://user:password@cluster.mongodb.net/admin"
 func EncodeMongoURI(uri string) (string, error) {
 	// split scheme and rest
 	parts := strings.SplitN(uri, ":", 2)
@@ -302,7 +303,7 @@ func EncodeMongoURI(uri string) (string, error) {
 		return "", fmt.Errorf("invalid URI scheme")
 	}
 	scheme := parts[0]
-	if scheme != "mongodb" {
+	if scheme != "mongodb" && scheme != "mongodb+srv" {
 		return "", fmt.Errorf("unsupported scheme: %s", scheme)
 	}
 	rest := parts[1][2:] // remove "//"
